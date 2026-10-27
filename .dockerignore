@@ -6,8 +6,11 @@ docs
 licenses
 node_modules
 pairdrop-cli
+server
+target
 *.md
 *.yml
 Dockerfile
+package*.json
 rtc_config_example.json
 turnserver_example.conf

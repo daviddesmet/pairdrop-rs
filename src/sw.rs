@@ -26,7 +26,7 @@ impl ServiceWorker {
         let path = public_dir.join("service-worker.js");
         let source = std::fs::read_to_string(&path).ok()?;
 
-        let version = format!("sha-{}", &digest(public_dir, &path));
+        let version = format!("sha-{}", digest(public_dir, &path));
 
         let body = match replace_version(&source, &version) {
             Some(body) => body,
