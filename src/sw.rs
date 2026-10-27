@@ -26,7 +26,7 @@ impl ServiceWorker {
         let path = public_dir.join("service-worker.js");
         let source = std::fs::read_to_string(&path).ok()?;
 
-        let version = format!("sha-{}", digest(public_dir, &path));
+        let version = format!("sha-{}", digest(public_dir));
 
         let body = match replace_version(&source, &version) {
             Some(body) => body,
@@ -55,12 +55,13 @@ fn replace_version(source: &str, version: &str) -> Option<String> {
     ))
 }
 
-/// SHA-256 over every file under `public/` except the service worker itself, which would
-/// otherwise depend on its own output.
-fn digest(public_dir: &Path, exclude: &Path) -> String {
+/// SHA-256 over every file under `public/`, the service worker included. There is no circularity:
+/// the digest is hashed from the file on disk, which still carries the literal `cacheVersion`, and
+/// substituted only in the response. Hashing it matters, because a change to the worker's own
+/// logic has to rename the cache like any other change would.
+fn digest(public_dir: &Path) -> String {
     let mut files = Vec::new();
     collect(public_dir, &mut files);
-    files.retain(|path| path != exclude);
     files.sort();
 
     let mut hasher = Sha256::new();

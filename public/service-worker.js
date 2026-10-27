@@ -68,14 +68,30 @@ const relativePathsNotToCache = [
     'config'
 ]
 
+// `cache.addAll()` fetches through the ordinary HTTP cache, so a brand new cache can be filled
+// with stale responses left over from an earlier deploy and then serve them forever, since this
+// worker is cache-first and only refreshes when cacheVersion changes. `cache: 'reload'` goes to
+// the network for every file, which is the only way to guarantee a clean install.
+const cacheAllFromNetwork = cache =>
+    Promise.all(
+        relativePathsToCache.map(path =>
+            fetch(new Request(path, {cache: 'reload'}))
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`Could not cache ${path}: ${response.status}`);
+                    }
+                    return cache.put(path, response);
+                })
+        )
+    );
+
 self.addEventListener('install', function(event) {
     // Perform install steps
     console.log("Cache files for sw:", cacheVersion);
     event.waitUntil(
         caches.open(cacheTitle)
             .then(function(cache) {
-                return cache
-                    .addAll(relativePathsToCache)
+                return cacheAllFromNetwork(cache)
                     .then(_ => {
                         console.log('All files cached for sw:', cacheVersion);
                         self.skipWaiting();
