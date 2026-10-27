@@ -12,6 +12,7 @@ services:
       - RTC_CONFIG=false # Set to the path of a file that specifies the STUN/TURN servers.
       - DEBUG_MODE=false # Set to true to debug container and peer connections.
       - TRUST_CF_CONNECTING_IP=false # Set to true only when Cloudflare is the sole way in.
+      - AUTO_CLOSE_RECEIVE_DIALOG=false # Set to true to dismiss the receive dialog once the download starts.
       - TZ=Etc/UTC # Time Zone
     ports:
       - "127.0.0.1:3000:3000" # Keep this on loopback so clients cannot bypass the reverse proxy.

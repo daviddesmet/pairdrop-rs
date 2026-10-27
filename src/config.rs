@@ -11,6 +11,9 @@ pub struct Config {
     pub ws_fallback: bool,
     pub rate_limit: Option<u32>,
     pub ipv6_localize: Option<usize>,
+    /// Close the receive dialog once the download has started, instead of leaving it up
+    /// with a "Download again" button.
+    pub auto_close_receive_dialog: bool,
     pub signaling_server: SignalingServer,
     pub rtc_config: serde_json::Value,
     pub buttons: Buttons,
@@ -123,6 +126,7 @@ impl Config {
             ws_fallback,
             rate_limit,
             ipv6_localize,
+            auto_close_receive_dialog: env("AUTO_CLOSE_RECEIVE_DIALOG").as_deref() == Some("true"),
             signaling_server,
             rtc_config,
             buttons: Buttons {
@@ -153,6 +157,7 @@ impl Config {
         config.client_config = serde_json::json!({
             "signalingServer": config.signaling_server,
             "buttons": config.buttons,
+            "autoCloseReceiveDialog": config.auto_close_receive_dialog,
         });
 
         Ok(config)

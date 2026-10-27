@@ -896,6 +896,10 @@ class ReceiveFileDialog extends ReceiveDialog {
 
         Events.on('files-received', e => this._onFilesReceived(e.detail.peerId, e.detail.files, e.detail.imagesOnly, e.detail.totalSize));
         this._filesQueue = [];
+
+        // Set by AUTO_CLOSE_RECEIVE_DIALOG on the server.
+        this._autoCloseReceiveDialog = false;
+        Events.on('config', e => this._autoCloseReceiveDialog = !!e.detail.autoCloseReceiveDialog);
     }
 
     async _onFilesReceived(peerId, files, imagesOnly, totalSize) {
@@ -1058,10 +1062,18 @@ class ReceiveFileDialog extends ReceiveDialog {
         setTimeout(() => {
             // wait for the dialog to be shown
             if (canShare) {
+                // Never auto-close over the share sheet: it is the user's own dialog, and
+                // closing underneath it drops the file.
                 this.$shareBtn.click();
             }
             else {
                 this.$downloadBtn.click();
+
+                if (this._autoCloseReceiveDialog) {
+                    // The download was the only reason the dialog was up. Give the browser a
+                    // moment to take the blob, then get out of the way.
+                    setTimeout(() => this.hide(), 500);
+                }
             }
         }, 500);
 

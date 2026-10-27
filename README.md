@@ -112,6 +112,8 @@ which the bundled fonts and 32 translation files are the bulk. Dropping the Alpi
   `compose.coturn.yml`. The dev compose stack is gone, because it served `public/` through nginx
   and so bypassed the generated service worker.
 * **The container is published** at `ghcr.io/daviddesmet/pairdrop-rs` for amd64 and arm64.
+* **`AUTO_CLOSE_RECEIVE_DIALOG=true`** closes the receive dialog once a download starts,
+  rather than leaving it up with a "Download again" button.
 
 Everything else is upstream's: the client, the wire protocol, every environment variable and all
 of the features below.
