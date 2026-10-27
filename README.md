@@ -20,6 +20,43 @@
 </div>
 <br>
 
+## Why this fork
+
+[PairDrop][up] is excellent and effectively unmaintained: the last substantive commit upstream is
+2025-02-25, and community pull requests sit unmerged. This fork keeps the web client exactly as
+it is and replaces the Node signaling server with a Rust one, so the parts that needed fixing
+could be fixed.
+
+| | upstream | here |
+| --- | --- | --- |
+| Signaling server | Node + Express + `ws` | Rust + axum, one static binary |
+| Container image | 202 MB (`linuxserver/pairdrop`) | **29 MB**, `scratch`, no shell or package manager |
+| Service worker cache | named after the release version | named after a digest of `public/` |
+| Asset responses | whatever Express sends | `Cache-Control: no-cache`, ETags still answer `304` |
+| `cf-connecting-ip` | always trusted | only under `TRUST_CF_CONNECTING_IP` |
+| Healthcheck | `wget` from the base image | the binary probes itself |
+
+The client is unchanged PairDrop and the wire protocol is identical, so stock clients work
+against this server and the original server works with this client. Upstream's `server/` is kept
+in the tree as the reference to diff against.
+
+**The cache fix is the reason this exists.** PairDrop's service worker is cache-first with no
+revalidation and only drops caches whose name differs from the current one, which upstream
+hardcodes as the release version. Once a cache holds a stale `index.html`, every deferred script
+loads twice (`Identifier 'Events' has already been declared`), `network.js` dies, the WebSocket
+never opens and your display name never appears. A hard refresh bypasses the service worker and
+looks fine; the next normal load is broken again. Nothing you can configure in a reverse proxy
+touches it — the only escape is clearing site data by hand on every device ([#384][384]).
+
+Naming the cache after a digest of `public/` means any asset change renames it, `activate`
+deletes the old one, and everything is re-fetched. The problem cannot survive a deploy.
+
+See [docs/rust-server.md](docs/rust-server.md) for the details, the full configuration, and the
+hyper half-close gotcha behind the self-probing healthcheck.
+
+[up]: https://github.com/schlagmichdoch/PairDrop
+[384]: https://github.com/schlagmichdoch/PairDrop/issues/384
+
 ## Features
 File sharing on your local network that works on all platforms.
 

@@ -13,3 +13,12 @@ services:
       - TZ=Etc/UTC # Time Zone
     ports:
       - "127.0.0.1:3000:3000" # Keep this on loopback so clients cannot bypass the reverse proxy.
+    # The image is `scratch`, so there is no wget, curl or shell to probe with. The binary opens
+    # one connection to itself, asks for /config and exits on the status line. See
+    # docs/rust-server.md for why it must not half-close that socket.
+    healthcheck:
+      test: ["CMD", "/pairdrop-rs", "--healthcheck"]
+      interval: 30s
+      timeout: 10s
+      start_period: 5s
+      retries: 3
