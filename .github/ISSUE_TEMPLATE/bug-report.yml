@@ -47,8 +47,8 @@ body:
     id: version
     attributes:
       label: pairdrop-rs version
-      description: Shown at the bottom of the About dialog, e.g. v2.0.0.
-      placeholder: "v2.0.0"
+      description: Shown at the bottom of the About dialog, e.g. v2.1.0.
+      placeholder: "v2.1.0"
     validations:
       required: true
 
