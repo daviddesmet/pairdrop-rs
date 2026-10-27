@@ -12,11 +12,10 @@
 name: Zip Release
 
 on:
+  # Publishing a release fires `push` for the tag it creates, so this covers both routes.
   push:
     tags:
       - "v*.*.*"
-  release:
-    types: [published]
 
 concurrency:
   group: zip-release-${{ github.ref }}

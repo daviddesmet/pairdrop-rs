@@ -8,14 +8,11 @@
 name: Release Image
 
 on:
-  # A tag pushed with git fires `push`. A release created in the GitHub UI or with `gh release
-  # create` fires `release`, and whether it also fires `push` for the tag it creates is not
-  # something GitHub documents, so both are listed and `concurrency` collapses a double fire.
+  # Publishing a release creates its tag server side, which fires `push` here. Confirmed on the
+  # v2.0.0 release, so there is no `release:` trigger: it only duplicated every run.
   push:
     tags:
       - "v*.*.*"
-  release:
-    types: [published]
   workflow_dispatch:
 
 concurrency:
