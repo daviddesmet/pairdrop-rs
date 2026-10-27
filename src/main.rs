@@ -1,4 +1,5 @@
 mod config;
+mod healthcheck;
 mod http;
 mod ip;
 mod names;
@@ -13,8 +14,20 @@ use std::sync::Arc;
 
 use config::Config;
 
+fn main() -> std::process::ExitCode {
+    // Runs before anything else: the healthcheck is a second, short-lived process inside the
+    // same container, not a second server.
+    if std::env::args().any(|arg| arg == "--healthcheck") {
+        let port = std::env::var("PORT").ok().and_then(|p| p.parse().ok()).unwrap_or(3000);
+        return healthcheck::run(port);
+    }
+
+    serve();
+    std::process::ExitCode::SUCCESS
+}
+
 #[tokio::main]
-async fn main() {
+async fn serve() {
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()

@@ -1,4 +1,4 @@
-# Build the signaling server against musl so the runtime image needs nothing but the binary.
+# Build against musl so the binary is fully static and the runtime image can be empty.
 FROM rust:1-alpine AS build
 
 RUN apk add --no-cache musl-dev
@@ -13,21 +13,21 @@ COPY src ./src
 RUN touch src/main.rs && cargo build --release
 
 
-FROM alpine:3.24
+# Nothing but the binary and the client: no shell, no package manager, no userland to patch.
+# `--healthcheck` is the same binary making one request to the server beside it, which is why
+# this image needs neither wget nor curl.
+FROM scratch
 
-RUN apk add --no-cache wget \
-    && adduser -D -u 1000 pairdrop
+WORKDIR /
 
-WORKDIR /app
+COPY --from=build /build/target/release/pairdrop-rs /pairdrop-rs
+COPY public /public
 
-COPY --from=build /build/target/release/pairdrop-rs /usr/local/bin/pairdrop-rs
-COPY public ./public
-
-USER pairdrop
+USER 1000:1000
 
 EXPOSE 3000
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD wget --quiet --tries=1 --spider http://localhost:3000/config || exit 1
+  CMD ["/pairdrop-rs", "--healthcheck"]
 
-ENTRYPOINT ["pairdrop-rs"]
+ENTRYPOINT ["/pairdrop-rs"]
