@@ -66,23 +66,13 @@ request, then read. No shutdown.
 
 ## Configuration
 
-Upstream's variables all work the same way: `PORT`, `WS_FALLBACK`, `RATE_LIMIT`, `RTC_CONFIG`,
-`SIGNALING_SERVER`, `IPV6_LOCALIZE`, `DEBUG_MODE`, and the `*_BUTTON_*` set. CLI flags
-`--rate-limit`, `--include-ws-fallback` and `--localhost-only` work too.
+Every variable and flag is listed in
+[host-your-own.md](host-your-own.md#environment-variables). Upstream's all work the same way;
+this fork adds `TRUST_CF_CONNECTING_IP` and `AUTO_CLOSE_RECEIVE_DIALOG`, and does not implement
+`--auto-restart`.
 
-Two additions:
-
-| Variable | Default | Meaning |
-| --- | --- | --- |
-| `TRUST_CF_CONNECTING_IP` | `false` | Honour the `cf-connecting-ip` header when picking a client's IP. |
-| `AUTO_CLOSE_RECEIVE_DIALOG` | `false` | Close the receive dialog once the download starts, instead of leaving it up with a "Download again" button. |
-
-`AUTO_CLOSE_RECEIVE_DIALOG` is served to the client through `/config` and read in
-`ReceiveFileDialog`. It deliberately does not apply when the browser offers the native share
-sheet, since that is the user's own dialog and closing underneath it drops the file.
-
-Upstream trusts that header unconditionally, so anyone can forge it and join an arbitrary IP room
-([#510][510]). Turn it on only when Cloudflare is genuinely the only way in.
+Upstream trusts `cf-connecting-ip` unconditionally, so anyone can forge it and join an arbitrary
+IP room ([#510][510]). Turn it on only when Cloudflare is genuinely the only way in.
 
 [510]: https://github.com/schlagmichdoch/PairDrop/issues/510
 

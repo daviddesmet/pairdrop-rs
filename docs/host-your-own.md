@@ -229,6 +229,71 @@ Overview of available Environment Variables are found [here](#environment-variab
 
 ## Environment Variables
 
+Everything this server reads, in one place. Each one has a section below.
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `PORT` | `3000` | Port to listen on. |
+| `PUBLIC_DIR` | `public` | Directory the client is served from, relative to the working directory. |
+| `DEBUG_MODE` | `false` | Log peer IP details and expose `/ip`. Never use in production. |
+| `RATE_LIMIT` | `false` | `true` limits each client to 1000 requests per 5 minutes. |
+| `WS_FALLBACK` | `false` | Relay transfers through the server when WebRTC is unavailable. |
+| `RTC_CONFIG` | `false` | Path to a JSON file specifying STUN/TURN servers. |
+| `SIGNALING_SERVER` | `false` | Use another instance's signaling server, as a host without a protocol prefix. |
+| `IPV6_LOCALIZE` | `false` | `1`-`7`: how many IPv6 hextets group peers into a room. `4` groups a `/64`. |
+| `TRUST_CF_CONNECTING_IP` | `false` | Honour the `cf-connecting-ip` header. **Added by this fork.** |
+| `AUTO_CLOSE_RECEIVE_DIALOG` | `false` | Close the receive dialog once a download starts. **Added by this fork.** |
+| `DONATION_BUTTON_*` | unset | `_ACTIVE`, `_LINK`, `_TITLE`. Hidden unless configured in this fork. |
+| `TWITTER_BUTTON_*` | unset | As above. Hidden unless configured in this fork. |
+| `MASTODON_BUTTON_*` | unset | As above. |
+| `BLUESKY_BUTTON_*` | unset | As above. |
+| `CUSTOM_BUTTON_*` | unset | As above. |
+| `PRIVACYPOLICY_BUTTON_*` | unset | As above. |
+| `RUST_LOG` | `pairdrop_rs=info` | Log filter, e.g. `pairdrop_rs=debug`. |
+
+Command-line flags, when running the binary directly: `--localhost-only`, `--rate-limit`,
+`--include-ws-fallback`, and `--healthcheck` (used by the container's `HEALTHCHECK`).
+
+Upstream's `--auto-restart` is not implemented. A container restart policy or a systemd unit
+does that job better.
+
+### Trusted Cloudflare header
+
+```bash
+TRUST_CF_CONNECTING_IP=false
+```
+
+> Default: `false`
+>
+> PairDrop groups peers into rooms by IP, and upstream reads `cf-connecting-ip` unconditionally,
+> so anything that can reach the port can forge it and join an arbitrary room
+> ([#510](https://github.com/schlagmichdoch/PairDrop/issues/510)). Set this to `true` only when
+> Cloudflare is genuinely the only route in.
+
+### Receive dialog
+
+```bash
+AUTO_CLOSE_RECEIVE_DIALOG=false
+```
+
+> Default: `false`
+>
+> A completed transfer downloads the file and leaves the receive dialog open with a
+> "Download again" button. Set this to `true` and the dialog closes itself once the download has
+> started. It does not apply when the browser offers its native share sheet, since that is the
+> user's own dialog and closing underneath it drops the file.
+
+### Client directory
+
+```bash
+PUBLIC_DIR=public
+```
+
+> Default: `public`
+>
+> Where the client is served from, relative to the working directory. The container sets this
+> implicitly by placing the client at `/public`.
+
 ### Debug Mode
 
 ```bash
