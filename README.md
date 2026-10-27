@@ -1,21 +1,24 @@
 <div align="center">
-  <a href="https://github.com/schlagmichdoch/PairDrop">
+  <a href="https://github.com/daviddesmet/pairdrop-rs">
     <img src="public/images/android-chrome-512x512.png" alt="Logo"  width="150" height="150">
   </a>
- 
-  # _Send it_, with [PairDrop](https://pairdrop.net)
+
+  # pairdrop-rs
 
   <p>
-    Local file sharing <a href="https://pairdrop.net"><strong>in your web browser</strong></a>. 
+    Local file sharing <strong>in your web browser</strong>.
     <br>
     Inspired by Apple's AirDrop.
-    <br> 
-    Fork of Snapdrop.
+    <br>
+    A fork of <a href="https://github.com/schlagmichdoch/PairDrop">PairDrop</a>, which is a fork of
+    <a href="https://github.com/RobinLinus/snapdrop">Snapdrop</a>,
+    <br>
+    with the Node.js signaling server rewritten in Rust.
     <br>
     <br>
-    <a href="https://github.com/schlagmichdoch/PairDrop/issues">Report a bug</a>
+    <a href="https://github.com/daviddesmet/pairdrop-rs/issues">Report a bug</a>
     <br />
-    <a href="https://github.com/schlagmichdoch/PairDrop/issues">Request feature</a>
+    <a href="https://github.com/daviddesmet/pairdrop-rs/issues">Request feature</a>
   </p>
 </div>
 <br>
@@ -151,36 +154,48 @@ Connect to others in complex network situations, or over the Internet.
 <img src="https://hosted.weblate.org/widget/pairdrop/horizontal-blue.svg" alt="Translation status" style="width: 300px" />
 </a>
 
+Translations live in upstream's Weblate project, not here. Contributions there reach this fork
+whenever `public/lang/` is synced from upstream.
+
 ## Built with the following awesome technologies:
+
+Server:
+* [Rust](https://www.rust-lang.org/) with [tokio](https://tokio.rs/) async runtime
+* [axum](https://github.com/tokio-rs/axum) HTTP and WebSocket handling
+* [tower-http](https://github.com/tower-rs/tower-http) static file serving
+* [serde](https://serde.rs/) JSON, [sha2](https://github.com/RustCrypto/hashes) asset digests and peer id hashes
+
+Client:
 * Vanilla HTML5 / JS ES6 / CSS 3 frontend
 * [WebRTC](http://webrtc.org/) / WebSockets
-* [Node.js](https://nodejs.org/en/) backend
 * [Progressive web app (PWA)](https://en.wikipedia.org/wiki/Progressive_web_app) unified functionality
 * [IndexedDB API](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API) storage handling
 * [zip.js](https://gildas-lormeau.github.io/zip.js/) library
-* [cyrb53](https://github.com/bryc/code/blob/master/jshash/experimental/cyrb53.js) super-fast hash function
+* [cyrb53](https://github.com/bryc/code/blob/master/jshash/experimental/cyrb53.js) super-fast hash function, in both the client and the server
 * [NoSleep](https://github.com/richtr/NoSleep.js) display sleep, add wake lock ([MIT](licenses/MIT-NoSleep))
 * [heic2any](https://github.com/alexcorvi/heic2any) HEIC/HEIF to PNG/GIF/JPEG ([MIT](licenses/MIT-heic2any))
 * [Weblate](https://weblate.org/) web-based localization tool
-* [BrowserStack](https://www.browserstack.com/) This project is tested with BrowserStack
+
+Gone with the Node server: Express, `ws`, `express-rate-limit`, `ua-parser-js` and
+`unique-names-generator`, all reimplemented in `src/`. There are no npm dependencies left.
 
 [FAQ](docs/faq.md)
 
-[Host your own instance with Docker or Node.js](docs/host-your-own.md).
+[Host your own instance with Docker or from source](docs/host-your-own.md).
 
-## Support
+## Support upstream
+
+This fork takes no donations. PairDrop is libre and always will be, and the work this is built on
+is schlagmichdoch's. If you find it useful, support the original:
+
 <a href="https://www.buymeacoffee.com/pairdrop" target="_blank">
 <img src="https://cdn.buymeacoffee.com/buttons/v2/default-blue.png" alt="Buy me a coffee" style="height: 60px !important;width: 217px !important;" >
 </a>
-<br />
-<br />
-
-PairDrop is libre, and always will be. \
-If you find it useful and want to support free and open-source software, please consider donating using the button above. \
-I footed the bill for the domain and the server, and you can help create and maintain great software by supporting me. \
-Thank you very much for your contribution!
 
 ## Contributing
-Feel free to [open an issue](https://github.com/schlagmichdoch/pairdrop/issues/new/choose) or a
-[pull request](https://github.com/schlagmichdoch/pairdrop/pulls), following the
+Feel free to [open an issue](https://github.com/daviddesmet/pairdrop-rs/issues/new/choose) or a
+[pull request](https://github.com/daviddesmet/pairdrop-rs/pulls), following the
 [Contributing Guidelines](CONTRIBUTING.md).
+
+Issues with the client itself, rather than this fork's server, may be better raised
+[upstream](https://github.com/schlagmichdoch/PairDrop/issues).
