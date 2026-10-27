@@ -1,0 +1,41 @@
+name: Enhancement
+description: Enhancements and feature requests are always welcome.
+title: "[Enhancement] "
+labels: ["enhancement"]
+body:
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which part?
+      description: >
+        Client changes are usually better proposed
+        [upstream](https://github.com/schlagmichdoch/PairDrop/issues), since this fork carries
+        PairDrop's client unmodified and syncs from it.
+      options:
+        - "Server (src/)"
+        - "Packaging, container or CI"
+        - "Client (public/)"
+        - "Documentation"
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: The motivation, not the solution.
+    validations:
+      required: true
+
+  - type: textarea
+    id: feature
+    attributes:
+      label: Describe the feature
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Drafts and additional context
+      description: Sketches, screenshots, links to prior art.

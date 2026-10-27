@@ -1,0 +1,13 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Bug in the PairDrop client
+    url: https://github.com/schlagmichdoch/PairDrop/issues
+    about: >
+      The web client here is unchanged upstream PairDrop. If the bug reproduces on
+      https://pairdrop.net it belongs upstream, not in this fork.
+  - name: Hosting and configuration
+    url: https://github.com/daviddesmet/pairdrop-rs/blob/main/docs/host-your-own.md
+    about: Reverse proxies, TURN, environment variables and running from source.
+  - name: How the Rust server works
+    url: https://github.com/daviddesmet/pairdrop-rs/blob/main/docs/rust-server.md
+    about: The service worker cache versioning, the healthcheck, and configuration differences.

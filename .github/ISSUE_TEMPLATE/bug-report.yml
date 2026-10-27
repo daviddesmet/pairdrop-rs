@@ -1,0 +1,115 @@
+name: Bug Report
+description: Something is broken. Please check the FAQ first.
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This fork changes the **server**. The web client is unchanged PairDrop, so the quickest
+        way to tell the two apart is the first question below.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Describe the bug
+      description: What happens, and what did you expect instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open ...
+        2. Click ...
+        3. See ...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: upstream
+    attributes:
+      label: Does it also happen on https://pairdrop.net?
+      description: >
+        pairdrop.net runs upstream PairDrop v1.11.2 with the Node server. If the bug reproduces
+        there it is a client bug and belongs in
+        [schlagmichdoch/PairDrop](https://github.com/schlagmichdoch/PairDrop/issues).
+      options:
+        - "No, only on pairdrop-rs"
+        - "Yes, upstream too"
+        - "Haven't tried"
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: pairdrop-rs version
+      description: Shown at the bottom of the About dialog, e.g. v2.0.0.
+      placeholder: "v2.0.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: deployment
+    attributes:
+      label: How is it deployed?
+      options:
+        - "ghcr.io/daviddesmet/pairdrop-rs image"
+        - "docker compose up --build"
+        - "cargo run"
+        - "Other"
+    validations:
+      required: true
+
+  - type: input
+    id: proxy
+    attributes:
+      label: Reverse proxy, if any
+      description: Include whether WebSocket upgrade is enabled, and any custom configuration.
+      placeholder: "Nginx Proxy Manager, websockets on, no custom config"
+
+  - type: textarea
+    id: client
+    attributes:
+      label: Client
+      description: Every device involved, since a transfer needs two.
+      placeholder: |
+        - Desktop: macOS 15, Chrome 141
+        - Phone: iPhone 15, iOS 18, Safari
+    validations:
+      required: true
+
+  - type: textarea
+    id: console
+    attributes:
+      label: Browser console output
+      description: DevTools, Console tab, on a failing load. This is usually the whole diagnosis.
+      render: shell
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Server logs
+      description: "`docker logs pairdrop`, or run with `RUST_LOG=pairdrop_rs=debug` for more."
+      render: shell
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before filing
+      options:
+        - label: I read the [FAQ](https://github.com/daviddesmet/pairdrop-rs/blob/main/docs/faq.md).
+          required: true
+        - label: >
+            I tried a fresh profile or cleared site data (DevTools, Application, Storage, Clear
+            site data). PairDrop's service worker caches aggressively, and a stale cache can look
+            exactly like a server bug.
+          required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
