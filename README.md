@@ -30,6 +30,47 @@
 it is and replaces the Node signaling server with a Rust one, so the parts that needed fixing
 could be fixed.
 
+The client is unchanged PairDrop and the wire protocol is identical, so stock clients work
+against this server and the original server works with this client. Upstream's `server/` was
+removed once the port was verified against it; read it at `git show fb743eb:server/` if you need
+to compare.
+
+**The cache fix is the reason this exists.** PairDrop's service worker is cache-first with no
+revalidation and only drops caches whose name differs from the current one, which upstream
+hardcodes as the release version. Once a cache holds a stale `index.html`, every deferred script
+loads twice (`Identifier 'Events' has already been declared`), `network.js` dies, the WebSocket
+never opens and your display name never appears. A hard refresh bypasses the service worker and
+looks fine; the next normal load is broken again. Nothing you can configure in a reverse proxy
+touches it. The only escape is clearing site data by hand on every device ([#384][384]).
+
+Naming the cache after a digest of `public/` means any asset change renames it, `activate`
+deletes the old one, and everything is re-fetched. The problem cannot survive a deploy.
+
+See [the differences](#differences-to-the-pairdrop-it-is-based-on) for the full list, and
+[docs/rust-server.md](docs/rust-server.md) for the configuration and the hyper half-close gotcha
+behind the self-probing healthcheck.
+
+[up]: https://github.com/schlagmichdoch/PairDrop
+[384]: https://github.com/schlagmichdoch/PairDrop/issues/384
+
+## Features
+File sharing on your local network that works on all platforms.
+
+- A multi-platform AirDrop-like solution that works.
+  - Send images, documents or text via peer-to-peer connection to devices on the same local network.
+- Internet transfers
+  - Join temporary public rooms to transfer files easily over the Internet.
+- Web-app 
+  - Works on all devices with a modern web-browser.
+ 
+Send a file from your phone to your laptop?
+<br>Share photos in original quality with friends using Android and iOS?
+<br>Share private files peer-to-peer between Linux systems?
+
+<img src="docs/pairdrop_screenshot_mobile.gif" alt="Screenshot GIF showing PairDrop in use" style="width: 300px">
+
+## Differences to the [PairDrop](https://github.com/schlagmichdoch/PairDrop) it is based on
+
 | | upstream | here |
 | --- | --- | --- |
 | Signaling server | Node + Express + `ws` | Rust + axum, one static binary |
@@ -53,43 +94,27 @@ which the bundled fonts and 32 translation files are the bulk. Dropping the Alpi
 17 MB on its own, and became possible once `HEALTHCHECK` stopped needing `wget`. See
 [docs/rust-server.md](docs/rust-server.md).
 
-The client is unchanged PairDrop and the wire protocol is identical, so stock clients work
-against this server and the original server works with this client. Upstream's `server/` was
-removed once the port was verified against it; read it at `git show fb743eb:server/` if you need
-to compare.
+### Behaviour that changed
 
-**The cache fix is the reason this exists.** PairDrop's service worker is cache-first with no
-revalidation and only drops caches whose name differs from the current one, which upstream
-hardcodes as the release version. Once a cache holds a stale `index.html`, every deferred script
-loads twice (`Identifier 'Events' has already been declared`), `network.js` dies, the WebSocket
-never opens and your display name never appears. A hard refresh bypasses the service worker and
-looks fine; the next normal load is broken again. Nothing you can configure in a reverse proxy
-touches it. The only escape is clearing site data by hand on every device ([#384][384]).
+* **Translations are upstream's.** `public/lang/` comes from
+  [PairDrop's Weblate project](https://hosted.weblate.org/engage/pairdrop/) and is synced from
+  upstream; translating there does not go through this repository.
+* **`--auto-restart` is gone.** The server does not respawn itself. A container restart policy or
+  a systemd unit does that job better.
+* **`cf-connecting-ip` is no longer trusted by default.** Upstream reads it unconditionally, so
+  anyone able to reach the port can forge it and join an arbitrary IP room
+  ([#510](https://github.com/schlagmichdoch/PairDrop/issues/510)). Set
+  `TRUST_CF_CONNECTING_IP=true` only when Cloudflare is genuinely the only way in.
+* **No npm dependencies.** Express, `ws`, `express-rate-limit`, `ua-parser-js` and
+  `unique-names-generator` are reimplemented in `src/`. Display names are still two words from
+  PairDrop's colour and animal lists, stable per peer id, but not byte-identical to upstream's.
+* **`docker-compose.yml` is now `compose.yml`**, and `docker-compose-coturn.yml` is
+  `compose.coturn.yml`. The dev compose stack is gone, because it served `public/` through nginx
+  and so bypassed the generated service worker.
+* **The container is published** at `ghcr.io/daviddesmet/pairdrop-rs` for amd64 and arm64.
 
-Naming the cache after a digest of `public/` means any asset change renames it, `activate`
-deletes the old one, and everything is re-fetched. The problem cannot survive a deploy.
-
-See [docs/rust-server.md](docs/rust-server.md) for the details, the full configuration, and the
-hyper half-close gotcha behind the self-probing healthcheck.
-
-[up]: https://github.com/schlagmichdoch/PairDrop
-[384]: https://github.com/schlagmichdoch/PairDrop/issues/384
-
-## Features
-File sharing on your local network that works on all platforms.
-
-- A multi-platform AirDrop-like solution that works.
-  - Send images, documents or text via peer-to-peer connection to devices on the same local network.
-- Internet transfers
-  - Join temporary public rooms to transfer files easily over the Internet.
-- Web-app 
-  - Works on all devices with a modern web-browser.
- 
-Send a file from your phone to your laptop?
-<br>Share photos in original quality with friends using Android and iOS?
-<br>Share private files peer-to-peer between Linux systems?
-
-<img src="docs/pairdrop_screenshot_mobile.gif" alt="Screenshot GIF showing PairDrop in use" style="width: 300px">
+Everything else is upstream's: the client, the wire protocol, every environment variable and all
+of the features below.
 
 ## Differences to the [Snapdrop](https://github.com/RobinLinus/snapdrop) it is based on
 <details><summary>View all differences</summary>
@@ -148,14 +173,6 @@ Connect to others in complex network situations, or over the Internet.
 * Translations.
 
 </details>
-
-## Translate PairDrop on [Hosted Weblate](https://hosted.weblate.org/engage/pairdrop/)
-<a href="https://hosted.weblate.org/engage/pairdrop/">
-<img src="https://hosted.weblate.org/widget/pairdrop/horizontal-blue.svg" alt="Translation status" style="width: 300px" />
-</a>
-
-Translations live in upstream's Weblate project, not here. Contributions there reach this fork
-whenever `public/lang/` is synced from upstream.
 
 ## Built with the following awesome technologies:
 
