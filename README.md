@@ -30,11 +30,25 @@ could be fixed.
 | | upstream | here |
 | --- | --- | --- |
 | Signaling server | Node + Express + `ws` | Rust + axum, one static binary |
-| Container image | 202 MB (`linuxserver/pairdrop`) | **29 MB**, `scratch`, no shell or package manager |
+| Container image | 200 MB (`linuxserver/pairdrop`) | **30 MB**, `scratch`, no shell or package manager |
 | Service worker cache | named after the release version | named after a digest of `public/` |
 | Asset responses | whatever Express sends | `Cache-Control: no-cache`, ETags still answer `304` |
 | `cf-connecting-ip` | always trusted | only under `TRUST_CF_CONNECTING_IP` |
 | Healthcheck | `wget` from the base image | the binary probes itself |
+
+### Image size
+
+Measured with `docker image inspect` on the same host, same app version (v1.11.2):
+
+| Image | On disk | Contents |
+| --- | ---: | --- |
+| `lscr.io/linuxserver/pairdrop:latest` | 200 MB | Alpine, the s6 service supervisor, the Node runtime and its npm dependencies, then the app. Largest single layer: 99 MB. |
+| `pairdrop-rs:latest` | **30 MB** | `public/` (14 MB) and a 2.4 MB statically linked binary, with no base image at all. |
+
+The server is the smallest part of its own image: almost all of the 30 MB is the web client, of
+which the bundled fonts and 32 translation files are the bulk. Dropping the Alpine base was worth
+17 MB on its own, and became possible once `HEALTHCHECK` stopped needing `wget`. See
+[docs/rust-server.md](docs/rust-server.md).
 
 The client is unchanged PairDrop and the wire protocol is identical, so stock clients work
 against this server and the original server works with this client. Upstream's `server/` is kept
@@ -46,7 +60,7 @@ hardcodes as the release version. Once a cache holds a stale `index.html`, every
 loads twice (`Identifier 'Events' has already been declared`), `network.js` dies, the WebSocket
 never opens and your display name never appears. A hard refresh bypasses the service worker and
 looks fine; the next normal load is broken again. Nothing you can configure in a reverse proxy
-touches it — the only escape is clearing site data by hand on every device ([#384][384]).
+touches it. The only escape is clearing site data by hand on every device ([#384][384]).
 
 Naming the cache after a digest of `public/` means any asset change renames it, `activate`
 deletes the old one, and everything is re-fetched. The problem cannot survive a deploy.

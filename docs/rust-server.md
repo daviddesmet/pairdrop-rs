@@ -8,8 +8,8 @@ Upstream's `server/` is still in the tree as the reference implementation to dif
 ## Why
 
 Upstream's last substantive commit is 2025-02-25. Community pull requests sit unmerged, and the
-one bug that actually bites a self-hosted instance — [#384][384] — is a client-side cache problem
-no proxy configuration can fix. Owning the server makes it fixable.
+one bug that actually bites a self-hosted instance, [#384][384], is a client-side cache
+problem no proxy configuration can fix. Owning the server makes it fixable.
 
 [384]: https://github.com/schlagmichdoch/PairDrop/issues/384
 
@@ -25,9 +25,9 @@ const cacheVersion = 'v1.11.2';
 
 So a cache populated from stale HTTP responses keeps serving them forever: the name still
 matches, nothing is deleted, nothing is re-fetched. A stale `index.html` beside a current
-`main.js` makes every deferred script load twice — `Uncaught SyntaxError: Identifier 'Events' has
-already been declared` — `network.js` aborts, the WebSocket never opens, and the display name
-never arrives. A hard reload bypasses the service worker and looks fine; the next normal load is
+`main.js` makes every deferred script load twice, raising `Uncaught SyntaxError: Identifier
+'Events' has already been declared`. `network.js` aborts, the WebSocket never opens, and the
+display name never arrives. A hard reload bypasses the service worker and looks fine; the next normal load is
 broken again. Only clearing site data, by hand, on every device, gets out of it.
 
 `src/sw.rs` serves the worker with the version replaced by a digest of everything else in
@@ -41,7 +41,7 @@ Change any asset and the name changes, so `activate` drops the old cache and ref
 cannot outlive a deploy, and the first visit after cutover clears whatever a device was holding.
 
 Static responses also carry `Cache-Control: no-cache`, because `cache.addAll()` fetches through
-the ordinary HTTP cache — without it the service worker can bake a heuristically cached copy into
+the ordinary HTTP cache. Without it the service worker can bake a heuristically cached copy into
 its own cache, which is how the cache gets poisoned in the first place. ETags still answer `304`,
 so revalidation stays cheap.
 
@@ -60,7 +60,7 @@ It opens one TCP connection to `127.0.0.1:$PORT`, sends `GET /config`, and exits
 **It must not half-close the socket.** An earlier version called `shutdown(Write)` after writing
 the request, which is ordinarily polite; hyper reads that as an aborted connection and sends back
 nothing at all, so the probe reported `unhealthy` against a perfectly healthy server. Write the
-request, then read — no shutdown.
+request, then read. No shutdown.
 
 ## Configuration
 
@@ -79,7 +79,7 @@ Upstream trusts that header unconditionally, so anyone can forge it and join an 
 
 [510]: https://github.com/schlagmichdoch/PairDrop/issues/510
 
-`X-Forwarded-For` is read the way upstream reads it — first entry wins — which is equally
+`X-Forwarded-For` is read the way upstream reads it, first entry wins, which is equally
 forgeable by anything that can reach the port directly. Publish the container on loopback and let
 the reverse proxy be the only route to it.
 
