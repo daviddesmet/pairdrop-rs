@@ -24,11 +24,35 @@ use crate::peer::{Peer, PeerName};
 const PING_INTERVAL: Duration = Duration::from_secs(1);
 const PING_TIMEOUT: Duration = Duration::from_secs(5);
 
+/// Transfer traffic that normally rides the WebRTC data channel. Relayed only under WS_FALLBACK.
+const RELAYED_ON_FALLBACK: [&str; 11] = [
+    "request",
+    "header",
+    "partition",
+    "partition-received",
+    "progress",
+    "files-transfer-response",
+    "file-transfer-complete",
+    "message-transfer-complete",
+    "text",
+    "display-name-changed",
+    "ws-chunk",
+];
+
+/// Rooms are keyed by room id alone, as upstream's `this._rooms` is: an IP for `ip` rooms, the
+/// shared secret for `secret` rooms, the room id for `public-id` rooms. Membership keeps join
+/// order so `peers` arrives in the same order the JS object iterated.
+#[derive(Default)]
+struct HubState {
+    peers: HashMap<Uuid, Peer>,
+    rooms: HashMap<String, Vec<Uuid>>,
+}
+
 pub struct Hub {
     pub conf: Arc<Config>,
     /// Salts the peer-id hashes. Regenerated per process, as upstream's `hasher` password is.
     secret: [u8; 64],
-    peers: Mutex<HashMap<Uuid, Peer>>,
+    state: Mutex<HubState>,
 }
 
 impl Hub {
@@ -38,7 +62,7 @@ impl Hub {
             chunk.copy_from_slice(&Uuid::new_v4().into_bytes());
             let _ = i;
         }
-        Hub { conf, secret, peers: Mutex::new(HashMap::new()) }
+        Hub { conf, secret, state: Mutex::new(HubState::default()) }
     }
 
     /// Lets a reconnecting client keep its peer id without letting anyone claim an arbitrary one.
@@ -50,9 +74,126 @@ impl Hub {
     }
 
     fn send_to(&self, peer_id: &Uuid, message: &serde_json::Value) {
-        if let Some(peer) = self.peers.lock().unwrap().get(peer_id) {
+        if let Some(peer) = self.state.lock().unwrap().peers.get(peer_id) {
             peer.send(message);
         }
+    }
+
+    fn join_ip_room(&self, peer_id: &Uuid) {
+        let mut state = self.state.lock().unwrap();
+        let Some(room_id) = state.peers.get(peer_id).map(|p| p.ip.clone()) else { return };
+        state.join_room(peer_id, "ip", &room_id);
+    }
+
+    fn leave_ip_room(&self, peer_id: &Uuid, disconnect: bool) {
+        let mut state = self.state.lock().unwrap();
+        let Some(room_id) = state.peers.get(peer_id).map(|p| p.ip.clone()) else { return };
+        state.leave_room(peer_id, "ip", &room_id, disconnect);
+    }
+
+    /// `_signalAndRelay`: hand the message to `message.to` within the sender's room, stamped with
+    /// the sender's identity. Only peers that share a room can reach each other.
+    fn signal_and_relay(&self, sender_id: &Uuid, mut message: serde_json::Value) {
+        let state = self.state.lock().unwrap();
+        let Some(sender) = state.peers.get(sender_id) else { return };
+
+        let room_id = match message.get("roomType").and_then(|t| t.as_str()) {
+            Some("ip") => sender.ip.clone(),
+            _ => match message.get("roomId").and_then(|id| id.as_str()) {
+                Some(id) => id.to_string(),
+                None => return,
+            },
+        };
+
+        let Some(recipient_id) = message
+            .get("to")
+            .and_then(|to| to.as_str())
+            .and_then(|to| Uuid::parse_str(to).ok())
+        else {
+            return;
+        };
+
+        let in_room = state.rooms.get(&room_id).is_some_and(|m| m.contains(&recipient_id));
+        if !in_room {
+            return;
+        }
+
+        let sender_info = json!({ "id": sender.id, "rtcSupported": sender.rtc_supported });
+        if let Some(object) = message.as_object_mut() {
+            object.remove("to");
+            object.insert("sender".into(), sender_info);
+        }
+
+        if let Some(recipient) = state.peers.get(&recipient_id) {
+            recipient.send(&message);
+        }
+    }
+}
+
+impl HubState {
+    fn join_room(&mut self, peer_id: &Uuid, room_type: &str, room_id: &str) {
+        // Re-joining leaves first, so other peers never see `peer-left` after `peer-joined`.
+        if self.rooms.get(room_id).is_some_and(|m| m.contains(peer_id)) {
+            self.leave_room(peer_id, room_type, room_id, false);
+        }
+
+        // The room has to exist before notifying, so the first peer in still gets `peers: []`.
+        self.rooms.entry(room_id.to_string()).or_default();
+        self.notify_peers(peer_id, room_type, room_id);
+        self.rooms.get_mut(room_id).expect("room was just created").push(*peer_id);
+    }
+
+    fn leave_room(&mut self, peer_id: &Uuid, room_type: &str, room_id: &str, disconnect: bool) {
+        let Some(members) = self.rooms.get_mut(room_id) else { return };
+        let Some(index) = members.iter().position(|id| id == peer_id) else { return };
+        members.remove(index);
+
+        if members.is_empty() {
+            self.rooms.remove(room_id);
+            return;
+        }
+
+        let message = json!({
+            "type": "peer-left",
+            "peerId": peer_id,
+            "roomType": room_type,
+            "roomId": room_id,
+            "disconnect": disconnect,
+        });
+
+        for other_id in self.rooms[room_id].clone() {
+            if let Some(other) = self.peers.get(&other_id) {
+                other.send(&message);
+            }
+        }
+    }
+
+    /// Tells the room about the newcomer, then tells the newcomer about the room.
+    fn notify_peers(&self, peer_id: &Uuid, room_type: &str, room_id: &str) {
+        let Some(members) = self.rooms.get(room_id) else { return };
+        let Some(peer) = self.peers.get(peer_id) else { return };
+
+        let joined = json!({
+            "type": "peer-joined",
+            "peer": peer.info(),
+            "roomType": room_type,
+            "roomId": room_id,
+        });
+
+        let mut others = Vec::new();
+        for other_id in members.iter().filter(|id| *id != peer_id) {
+            if let Some(other) = self.peers.get(other_id) {
+                other.send(&joined);
+                others.push(other.info());
+            }
+        }
+
+        peer.send(&json!({
+            "type": "peers",
+            "peers": others,
+            "roomType": room_type,
+            "roomId": room_id,
+        }));
     }
 }
 
@@ -102,9 +243,10 @@ async fn connection(
     let name = PeerName::new(&id, user_agent.as_deref());
     tracing::debug!(%id, %ip, display_name = %name.display_name, "peer connected");
 
-    hub.peers
+    hub.state
         .lock()
         .unwrap()
+        .peers
         .insert(id, Peer { id, ip: ip.clone(), rtc_supported, name: name.clone(), tx: tx.clone() });
 
     // One task owns the sink; everything else queues through `tx`.
@@ -164,6 +306,17 @@ async fn connection(
                         match value.get("type").and_then(|t| t.as_str()) {
                             Some("pong") => last_pong = tokio::time::Instant::now(),
                             Some("disconnect") => break,
+                            Some("join-ip-room") => hub.join_ip_room(&id),
+                            Some("signal") => hub.signal_and_relay(&id, value),
+                            // Everything else is peer-to-peer payload that only travels through
+                            // the server when the WebSocket fallback is switched on.
+                            Some(kind) if RELAYED_ON_FALLBACK.contains(&kind) => {
+                                if hub.conf.ws_fallback {
+                                    hub.signal_and_relay(&id, value);
+                                } else {
+                                    tracing::debug!(kind, "websocket fallback is not activated on this instance");
+                                }
+                            }
                             Some(other) => tracing::trace!(%id, kind = other, "unhandled message"),
                             None => tracing::warn!("WS: message without a type"),
                         }
@@ -175,7 +328,8 @@ async fn connection(
         }
     }
 
-    hub.peers.lock().unwrap().remove(&id);
+    hub.leave_ip_room(&id, true);
+    hub.state.lock().unwrap().peers.remove(&id);
     drop(tx);
     writer.abort();
     tracing::debug!(%id, "peer disconnected");
