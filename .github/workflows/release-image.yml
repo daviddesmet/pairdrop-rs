@@ -8,10 +8,19 @@
 name: Release Image
 
 on:
+  # A tag pushed with git fires `push`. A release created in the GitHub UI or with `gh release
+  # create` fires `release`, and whether it also fires `push` for the tag it creates is not
+  # something GitHub documents, so both are listed and `concurrency` collapses a double fire.
   push:
     tags:
       - "v*.*.*"
+  release:
+    types: [published]
   workflow_dispatch:
+
+concurrency:
+  group: release-image-${{ github.ref }}
+  cancel-in-progress: false
 
 env:
   REGISTRY: ghcr.io
@@ -46,11 +55,14 @@ jobs:
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          # `latest=auto` tags the newest non-prerelease semver build as `latest`.
+          # `is_default_branch` is false on a tag push, so do not gate `latest` on it.
+          flavor: |
+            latest=auto
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
-            type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build and push Docker image
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
