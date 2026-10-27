@@ -34,8 +34,14 @@ jobs:
           filename: 'pairdrop-cli.zip'
           directory: 'pairdrop-cli'
           exclusions: '*.git* /*node_modules/* .editorconfig'
+      # The release is published first, which is what creates the tag that triggers this, so the
+      # release always exists by the time we get here. Attach to it rather than creating it, and
+      # leave its title and notes alone.
       - name: Upload Release
         uses: ncipollo/release-action@6c75be85e571768fa31b40abf38de58ba0397db5 # v1.13.0
         with:
           artifacts: "pairdrop-cli/pairdrop-cli.zip"
           token: ${{ secrets.GITHUB_TOKEN }}
+          allowUpdates: true
+          omitNameDuringUpdate: true
+          omitBodyDuringUpdate: true
