@@ -1,4 +1,4 @@
-//! Random tokens, ported from `randomizer` in `server/helper.js`.
+//! Random tokens, ported from `randomizer` in upstream's `server/helper.js`.
 
 use rand::Rng;
 

@@ -1,4 +1,4 @@
-//! Client IP resolution, ported from `_setIP` / `ipIsPrivate` in `server/peer.js`.
+//! Client IP resolution, ported from `_setIP` / `ipIsPrivate` in upstream's `server/peer.js`.
 //!
 //! PairDrop groups peers into rooms by IP, and deliberately collapses every private address to
 //! `127.0.0.1` so that everyone on the server's own network lands in the same room.

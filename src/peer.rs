@@ -1,4 +1,4 @@
-//! Peer identity, ported from `server/peer.js`.
+//! Peer identity, ported from upstream's `server/peer.js`.
 
 use std::time::{Duration, Instant};
 

@@ -3,7 +3,9 @@
 This fork replaces PairDrop's Node signaling server with a Rust one. The web client in `public/`
 is unchanged PairDrop, and the protocol is identical, so stock clients work against it.
 
-Upstream's `server/` is still in the tree as the reference implementation to diff against.
+Upstream's `server/` was removed in 2.0.0 once the port was verified frame-for-frame against
+it. It is still in history: `git show fb743eb:server/ws-server.js`, or
+`git checkout fb743eb -- server` to bring it back temporarily.
 
 ## Why
 
@@ -87,11 +89,13 @@ the reverse proxy be the only route to it.
 
 ```bash
 cargo run                      # serves ./public on :3000
-docker compose up -d --build   # scratch image, ~29 MB
+docker compose up -d --build   # scratch image, ~30 MB
 ```
 
-To diff against upstream behaviour, run both and compare:
+To compare behaviour against upstream, restore its server from history and run it beside this
+one:
 
 ```bash
-PORT=3001 node server/index.js
+git checkout fb743eb -- server package.json
+npm install && PORT=3001 node server/index.js
 ```

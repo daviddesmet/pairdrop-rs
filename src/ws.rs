@@ -1,4 +1,4 @@
-//! Signaling WebSocket, ported from `server/ws-server.js`.
+//! Signaling WebSocket, ported from upstream's `server/ws-server.js`.
 
 use std::collections::HashMap;
 use std::net::SocketAddr;

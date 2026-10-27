@@ -38,7 +38,7 @@ could be fixed.
 
 ### Image size
 
-Measured with `docker image inspect` on the same host, same app version (v1.11.2):
+Measured with `docker image inspect` on the same host, both serving the same client:
 
 | Image | On disk | Contents |
 | --- | ---: | --- |
@@ -51,8 +51,9 @@ which the bundled fonts and 32 translation files are the bulk. Dropping the Alpi
 [docs/rust-server.md](docs/rust-server.md).
 
 The client is unchanged PairDrop and the wire protocol is identical, so stock clients work
-against this server and the original server works with this client. Upstream's `server/` is kept
-in the tree as the reference to diff against.
+against this server and the original server works with this client. Upstream's `server/` was
+removed once the port was verified against it; read it at `git show fb743eb:server/` if you need
+to compare.
 
 **The cache fix is the reason this exists.** PairDrop's service worker is cache-first with no
 revalidation and only drops caches whose name differs from the current one, which upstream

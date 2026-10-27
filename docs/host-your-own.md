@@ -151,34 +151,28 @@ Run the compose file with `docker compose up -d`.
 
 <br>
 
-## Deployment with Node.js
+## Deployment from source
 
 Clone this repository and enter the folder
 
 ```bash
-git clone https://github.com/schlagmichdoch/PairDrop.git && cd PairDrop
+git clone https://github.com/daviddesmet/pairdrop-rs.git && cd pairdrop-rs
 ```
 
-Install all dependencies with NPM:
+Build and start the server with:
 
 ```bash
-npm install
+cargo run --release
 ```
 
-Start the server with:
-
-```bash
-npm start
-```
-
-> By default, the node server listens on port 3000.
-
+> By default the server listens on port 3000 and serves `public/` from the working directory.
+> Set `PUBLIC_DIR` to serve it from somewhere else.
 
 <br>
 
 ### Options / Flags
 
-These are some flags only reasonable when deploying via Node.js
+These are only reasonable when running the binary directly rather than the container.
 
 #### Port
 
@@ -187,64 +181,46 @@ PORT=3000
 ```
 
 > Default: `3000`
-> 
-> Environment variable to specify the port used by the Node.js server \
-> e.g. `PORT=3010 npm start`
+>
+> e.g. `PORT=3010 cargo run --release`
 
 #### Local Run
 
 ```bash
-npm start -- --localhost-only
+cargo run --release -- --localhost-only
 ```
 
 > Only allow connections from localhost.
 >
-> You must use a server proxy to set the `X-Forwarded-For` header 
+> You must use a server proxy to set the `X-Forwarded-For` header
 > to prevent all clients from discovering each other (See [#HTTP-Server](#http-server)).
 >
-> Use this when deploying PairDrop with node to prevent 
-> bypassing the reverse proxy by reaching the Node.js server directly.
+> Use this to prevent clients from bypassing the reverse proxy by reaching the server directly.
+> The container does the same thing by publishing its port on `127.0.0.1`.
 
-#### Automatic restart on error
-
-```bash
-npm start -- --auto-restart
-```
-
-> Restarts server automatically on error
-
-#### Production (autostart and rate-limit)
+#### Production (rate-limit, localhost-only)
 
 ```bash
-npm run start:prod
+RATE_LIMIT=true cargo run --release -- --localhost-only
 ```
 
-> shortcut for `RATE_LIMIT=5 npm start -- --auto-restart`
+> Upstream's `--auto-restart` has no equivalent here. The server does not respawn itself, because
+> a container restart policy or a systemd unit does that job better.
 
-#### Production (autostart, rate-limit, localhost-only)
+#### Set Environment Variables
 
-```bash
-npm run start:prod -- --localhost-only
-```
-
-> To prevent connections to the node server from bypassing \
-> the proxy server you should always use "--localhost-only" on production.
-
-#### Set Environment Variables via Node.js
-
-To specify environment variables set them in the run command in front of `npm start`.
-The syntax is different on Unix and Windows.
+Set them in front of the run command. The syntax differs between Unix and Windows.
 
 On Unix based systems
 
 ```bash
-PORT=3000 RTC_CONFIG="rtc_config.json" npm start
+PORT=3000 RTC_CONFIG="rtc_config.json" cargo run --release
 ```
 
 On Windows
 
-```bash
-$env:PORT=3000 RTC_CONFIG="rtc_config.json"; npm start
+```powershell
+$env:PORT=3000; $env:RTC_CONFIG="rtc_config.json"; cargo run --release
 ```
 
 Overview of available Environment Variables are found [here](#environment-variables).
@@ -655,8 +631,8 @@ Now point your web browser to `http://localhost:3000`.
 - `cargo run` serves `public/` directly, so a client change needs only a reload.
 - A server change needs a restart.
 - `RUST_LOG=pairdrop_rs=debug cargo run` logs peer connections and room membership.
-- To compare behaviour against upstream's Node server, run it beside this one:
-  `PORT=3001 node server/index.js`.
+- To compare behaviour against upstream's Node server, restore it from history first:
+  `git checkout fb743eb -- server package.json && npm install && PORT=3001 node server/index.js`.
 
 <br>
 

@@ -1,4 +1,4 @@
-//! HTTP surface, ported from `server/server.js`.
+//! HTTP surface, ported from upstream's `server/server.js`.
 
 use std::net::SocketAddr;
 use std::sync::Arc;

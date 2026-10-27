@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use serde::Serialize;
 
-/// Mirrors `conf` in `server/index.js`.
+/// Mirrors `conf` in upstream's `server/index.js`.
 #[derive(Debug, Clone)]
 pub struct Config {
     pub port: u16,

@@ -1,4 +1,4 @@
-//! Per-IP request limiting, replacing `express-rate-limit` in `server/server.js`.
+//! Per-IP request limiting, replacing `express-rate-limit` in upstream's `server/server.js`.
 //!
 //! Like upstream, the key is the client IP as the proxy reports it, so an instance exposed
 //! without a trusted proxy in front can be made to see whatever `X-Forwarded-For` a caller sends.
