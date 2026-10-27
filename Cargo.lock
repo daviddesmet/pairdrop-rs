@@ -478,6 +478,7 @@ dependencies = [
  "axum",
  "futures-util",
  "hex",
+ "rand",
  "serde",
  "serde_json",
  "sha2",

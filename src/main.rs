@@ -3,6 +3,7 @@ mod http;
 mod ip;
 mod names;
 mod peer;
+mod random;
 mod ws;
 
 use std::net::{Ipv4Addr, SocketAddr};

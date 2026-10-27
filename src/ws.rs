@@ -19,6 +19,7 @@ use uuid::Uuid;
 use crate::config::Config;
 use crate::ip;
 use crate::peer::{Peer, PeerName};
+use crate::random;
 
 /// Upstream pings every second and drops a peer that has not ponged for five.
 const PING_INTERVAL: Duration = Duration::from_secs(1);
@@ -46,6 +47,13 @@ const RELAYED_ON_FALLBACK: [&str; 11] = [
 struct HubState {
     peers: HashMap<Uuid, Peer>,
     rooms: HashMap<String, Vec<Uuid>>,
+    /// Pair key -> the secret it unlocks and the peer offering it.
+    pair_keys: HashMap<String, PairOffer>,
+}
+
+struct PairOffer {
+    room_secret: String,
+    creator: Uuid,
 }
 
 pub struct Hub {
@@ -85,10 +93,186 @@ impl Hub {
         state.join_room(peer_id, "ip", &room_id);
     }
 
-    fn leave_ip_room(&self, peer_id: &Uuid, disconnect: bool) {
+    fn on_room_secrets(&self, peer_id: &Uuid, message: &serde_json::Value) {
+        let Some(secrets) = message.get("roomSecrets").and_then(|s| s.as_array()) else { return };
+
+        let secrets: Vec<String> = secrets
+            .iter()
+            .filter_map(|s| s.as_str())
+            .filter(|s| s.is_ascii() && (64..=256).contains(&s.chars().count()))
+            .map(str::to_owned)
+            .collect();
+
         let mut state = self.state.lock().unwrap();
-        let Some(room_id) = state.peers.get(peer_id).map(|p| p.ip.clone()) else { return };
-        state.leave_room(peer_id, "ip", &room_id, disconnect);
+        for secret in secrets {
+            state.join_secret_room(peer_id, &secret);
+        }
+    }
+
+    fn on_room_secrets_deleted(&self, message: &serde_json::Value) {
+        let Some(secrets) = message.get("roomSecrets").and_then(|s| s.as_array()) else { return };
+
+        let mut state = self.state.lock().unwrap();
+        for secret in secrets.iter().filter_map(|s| s.as_str()) {
+            state.delete_secret_room(secret);
+        }
+    }
+
+    fn on_pair_device_initiate(&self, peer_id: &Uuid) {
+        let room_secret = random::room_secret();
+        let mut state = self.state.lock().unwrap();
+
+        let pair_key = state.create_pair_key(peer_id, &room_secret);
+
+        if let Some(previous) = state.peers.get(peer_id).and_then(|p| p.pair_key.clone()) {
+            if previous != pair_key {
+                state.remove_pair_key(&previous);
+            }
+        }
+        if let Some(peer) = state.peers.get_mut(peer_id) {
+            peer.pair_key = Some(pair_key.clone());
+            peer.send(&json!({
+                "type": "pair-device-initiated",
+                "roomSecret": room_secret,
+                "pairKey": pair_key,
+            }));
+        }
+
+        state.join_secret_room(peer_id, &room_secret);
+    }
+
+    fn on_pair_device_join(&self, peer_id: &Uuid, message: &serde_json::Value) {
+        let mut state = self.state.lock().unwrap();
+
+        let rate_limited =
+            state.peers.get_mut(peer_id).is_some_and(|peer| peer.rate_limit_reached());
+        if rate_limited {
+            state.send(peer_id, &json!({ "type": "join-key-rate-limit" }));
+            return;
+        }
+
+        let key = message.get("pairKey").and_then(|k| k.as_str()).unwrap_or_default().to_string();
+        let offer = state.pair_keys.get(&key);
+
+        let Some((room_secret, creator)) = offer
+            .filter(|offer| offer.creator != *peer_id)
+            .map(|offer| (offer.room_secret.clone(), offer.creator))
+        else {
+            state.send(peer_id, &json!({ "type": "pair-device-join-key-invalid" }));
+            return;
+        };
+
+        state.remove_pair_key(&key);
+
+        state.send(
+            peer_id,
+            &json!({ "type": "pair-device-joined", "roomSecret": room_secret, "peerId": creator }),
+        );
+        state.send(
+            &creator,
+            &json!({ "type": "pair-device-joined", "roomSecret": room_secret, "peerId": peer_id }),
+        );
+
+        state.join_secret_room(peer_id, &room_secret);
+
+        // A device that was itself offering a key stops offering it once it pairs.
+        if let Some(own_key) = state.peers.get(peer_id).and_then(|p| p.pair_key.clone()) {
+            state.remove_pair_key(&own_key);
+        }
+    }
+
+    fn on_pair_device_cancel(&self, peer_id: &Uuid) {
+        let mut state = self.state.lock().unwrap();
+        let Some(pair_key) = state.peers.get(peer_id).and_then(|p| p.pair_key.clone()) else {
+            return;
+        };
+
+        state.remove_pair_key(&pair_key);
+        state.send(peer_id, &json!({ "type": "pair-device-canceled", "pairKey": pair_key }));
+    }
+
+    fn on_regenerate_room_secret(&self, message: &serde_json::Value) {
+        let Some(old_secret) = message.get("roomSecret").and_then(|s| s.as_str()) else { return };
+        let new_secret = random::room_secret();
+
+        let mut state = self.state.lock().unwrap();
+        let Some(members) = state.rooms.remove(old_secret) else { return };
+
+        let notice = json!({
+            "type": "room-secret-regenerated",
+            "oldRoomSecret": old_secret,
+            "newRoomSecret": new_secret,
+        });
+
+        for member_id in members {
+            if let Some(peer) = state.peers.get_mut(&member_id) {
+                peer.send(&notice);
+                peer.remove_room_secret(old_secret);
+            }
+        }
+    }
+
+    fn on_create_public_room(&self, peer_id: &Uuid) {
+        let room_id = random::public_room_id();
+
+        let mut state = self.state.lock().unwrap();
+        state.send(peer_id, &json!({ "type": "public-room-created", "roomId": room_id }));
+        state.join_public_room(peer_id, &room_id);
+    }
+
+    fn on_join_public_room(&self, peer_id: &Uuid, message: &serde_json::Value) {
+        let mut state = self.state.lock().unwrap();
+
+        let rate_limited =
+            state.peers.get_mut(peer_id).is_some_and(|peer| peer.rate_limit_reached());
+        if rate_limited {
+            state.send(peer_id, &json!({ "type": "join-key-rate-limit" }));
+            return;
+        }
+
+        let Some(room_id) =
+            message.get("publicRoomId").and_then(|id| id.as_str()).map(str::to_owned)
+        else {
+            return;
+        };
+        let create_if_invalid =
+            message.get("createIfInvalid").and_then(|v| v.as_bool()).unwrap_or(false);
+
+        if !state.rooms.contains_key(&room_id) && !create_if_invalid {
+            state.send(
+                peer_id,
+                &json!({ "type": "public-room-id-invalid", "publicRoomId": room_id }),
+            );
+            return;
+        }
+
+        state.join_public_room(peer_id, &room_id);
+    }
+
+    fn on_leave_public_room(&self, peer_id: &Uuid) {
+        let mut state = self.state.lock().unwrap();
+        state.leave_public_room(peer_id, true);
+        state.send(peer_id, &json!({ "type": "public-room-left" }));
+    }
+
+    /// Everything a peer is part of falls away together when the socket closes.
+    fn disconnect(&self, peer_id: &Uuid) {
+        let mut state = self.state.lock().unwrap();
+
+        if let Some(pair_key) = state.peers.get(peer_id).and_then(|p| p.pair_key.clone()) {
+            state.remove_pair_key(&pair_key);
+        }
+
+        if let Some(ip) = state.peers.get(peer_id).map(|p| p.ip.clone()) {
+            state.leave_room(peer_id, "ip", &ip, true);
+        }
+
+        for secret in state.peers.get(peer_id).map(|p| p.room_secrets.clone()).unwrap_or_default() {
+            state.leave_secret_room(peer_id, &secret, true);
+        }
+
+        state.leave_public_room(peer_id, true);
+        state.peers.remove(peer_id);
     }
 
     /// `_signalAndRelay`: hand the message to `message.to` within the sender's room, stamped with
@@ -131,6 +315,75 @@ impl Hub {
 }
 
 impl HubState {
+    fn send(&self, peer_id: &Uuid, message: &serde_json::Value) {
+        if let Some(peer) = self.peers.get(peer_id) {
+            peer.send(message);
+        }
+    }
+
+    fn join_secret_room(&mut self, peer_id: &Uuid, room_secret: &str) {
+        self.join_room(peer_id, "secret", room_secret);
+        if let Some(peer) = self.peers.get_mut(peer_id) {
+            peer.add_room_secret(room_secret);
+        }
+    }
+
+    fn leave_secret_room(&mut self, peer_id: &Uuid, room_secret: &str, disconnect: bool) {
+        self.leave_room(peer_id, "secret", room_secret, disconnect);
+        if let Some(peer) = self.peers.get_mut(peer_id) {
+            peer.remove_room_secret(room_secret);
+        }
+    }
+
+    fn delete_secret_room(&mut self, room_secret: &str) {
+        let Some(members) = self.rooms.get(room_secret).cloned() else { return };
+
+        let notice = json!({ "type": "secret-room-deleted", "roomSecret": room_secret });
+        for member_id in members {
+            self.leave_secret_room(&member_id, room_secret, true);
+            self.send(&member_id, &notice);
+        }
+    }
+
+    /// A peer is only ever in one public room.
+    fn join_public_room(&mut self, peer_id: &Uuid, room_id: &str) {
+        self.leave_public_room(peer_id, false);
+        self.join_room(peer_id, "public-id", room_id);
+        if let Some(peer) = self.peers.get_mut(peer_id) {
+            peer.public_room_id = Some(room_id.to_string());
+        }
+    }
+
+    fn leave_public_room(&mut self, peer_id: &Uuid, disconnect: bool) {
+        let Some(room_id) = self.peers.get(peer_id).and_then(|p| p.public_room_id.clone()) else {
+            return;
+        };
+
+        self.leave_room(peer_id, "public-id", &room_id, disconnect);
+        if let Some(peer) = self.peers.get_mut(peer_id) {
+            peer.public_room_id = None;
+        }
+    }
+
+    fn create_pair_key(&mut self, creator: &Uuid, room_secret: &str) -> String {
+        let mut key = random::pair_key();
+        while self.pair_keys.contains_key(&key) {
+            key = random::pair_key();
+        }
+
+        self.pair_keys
+            .insert(key.clone(), PairOffer { room_secret: room_secret.to_string(), creator: *creator });
+        key
+    }
+
+    fn remove_pair_key(&mut self, pair_key: &str) {
+        if let Some(offer) = self.pair_keys.remove(pair_key) {
+            if let Some(creator) = self.peers.get_mut(&offer.creator) {
+                creator.pair_key = None;
+            }
+        }
+    }
+
     fn join_room(&mut self, peer_id: &Uuid, room_type: &str, room_id: &str) {
         // Re-joining leaves first, so other peers never see `peer-left` after `peer-joined`.
         if self.rooms.get(room_id).is_some_and(|m| m.contains(peer_id)) {
@@ -247,7 +500,7 @@ async fn connection(
         .lock()
         .unwrap()
         .peers
-        .insert(id, Peer { id, ip: ip.clone(), rtc_supported, name: name.clone(), tx: tx.clone() });
+        .insert(id, Peer::new(id, ip.clone(), rtc_supported, name.clone(), tx.clone()));
 
     // One task owns the sink; everything else queues through `tx`.
     let writer = tokio::spawn(async move {
@@ -307,6 +560,15 @@ async fn connection(
                             Some("pong") => last_pong = tokio::time::Instant::now(),
                             Some("disconnect") => break,
                             Some("join-ip-room") => hub.join_ip_room(&id),
+                            Some("room-secrets") => hub.on_room_secrets(&id, &value),
+                            Some("room-secrets-deleted") => hub.on_room_secrets_deleted(&value),
+                            Some("pair-device-initiate") => hub.on_pair_device_initiate(&id),
+                            Some("pair-device-join") => hub.on_pair_device_join(&id, &value),
+                            Some("pair-device-cancel") => hub.on_pair_device_cancel(&id),
+                            Some("regenerate-room-secret") => hub.on_regenerate_room_secret(&value),
+                            Some("create-public-room") => hub.on_create_public_room(&id),
+                            Some("join-public-room") => hub.on_join_public_room(&id, &value),
+                            Some("leave-public-room") => hub.on_leave_public_room(&id),
                             Some("signal") => hub.signal_and_relay(&id, value),
                             // Everything else is peer-to-peer payload that only travels through
                             // the server when the WebSocket fallback is switched on.
@@ -328,8 +590,7 @@ async fn connection(
         }
     }
 
-    hub.leave_ip_room(&id, true);
-    hub.state.lock().unwrap().peers.remove(&id);
+    hub.disconnect(&id);
     drop(tx);
     writer.abort();
     tracing::debug!(%id, "peer disconnected");
