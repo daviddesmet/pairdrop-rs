@@ -48,7 +48,11 @@ fn replace_version(source: &str, version: &str) -> Option<String> {
     let value_start = start + VERSION_DECLARATION.len();
     let end = source[value_start..].find(';')? + value_start;
 
-    Some(format!("{}'{version}'{}", &source[..value_start], &source[end..]))
+    Some(format!(
+        "{}'{version}'{}",
+        &source[..value_start],
+        &source[end..]
+    ))
 }
 
 /// SHA-256 over every file under `public/` except the service worker itself, which would
@@ -74,7 +78,9 @@ fn digest(public_dir: &Path, exclude: &Path) -> String {
 }
 
 fn collect(dir: &Path, out: &mut Vec<std::path::PathBuf>) {
-    let Ok(entries) = std::fs::read_dir(dir) else { return };
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
 
     for entry in entries.flatten() {
         let path = entry.path();

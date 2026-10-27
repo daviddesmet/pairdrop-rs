@@ -34,7 +34,10 @@ struct Window {
 
 impl RateLimiter {
     pub fn new(conf: Arc<Config>) -> Self {
-        RateLimiter { conf, windows: Arc::new(Mutex::new(HashMap::new())) }
+        RateLimiter {
+            conf,
+            windows: Arc::new(Mutex::new(HashMap::new())),
+        }
     }
 
     /// Returns how many requests remain, or `None` once the window is exhausted.
@@ -44,7 +47,10 @@ impl RateLimiter {
 
         windows.retain(|_, window| now.duration_since(window.started) < WINDOW);
 
-        let window = windows.entry(client_ip).or_insert(Window { started: now, count: 0 });
+        let window = windows.entry(client_ip).or_insert(Window {
+            started: now,
+            count: 0,
+        });
 
         if window.count >= MAX_REQUESTS {
             return None;

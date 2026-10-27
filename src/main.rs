@@ -18,7 +18,10 @@ fn main() -> std::process::ExitCode {
     // Runs before anything else: the healthcheck is a second, short-lived process inside the
     // same container, not a second server.
     if std::env::args().any(|arg| arg == "--healthcheck") {
-        let port = std::env::var("PORT").ok().and_then(|p| p.parse().ok()).unwrap_or(3000);
+        let port = std::env::var("PORT")
+            .ok()
+            .and_then(|p| p.parse().ok())
+            .unwrap_or(3000);
         return healthcheck::run(port);
     }
 
@@ -52,7 +55,11 @@ async fn serve() {
         tracing::info!(segments, "IPv6 client IPs will be localized");
     }
 
-    let host = if conf.localhost_only { Ipv4Addr::LOCALHOST } else { Ipv4Addr::UNSPECIFIED };
+    let host = if conf.localhost_only {
+        Ipv4Addr::LOCALHOST
+    } else {
+        Ipv4Addr::UNSPECIFIED
+    };
     let addr = SocketAddr::from((host, conf.port));
 
     let service_worker = sw::ServiceWorker::build(&conf.public_dir).map(Arc::new);
@@ -74,10 +81,13 @@ async fn serve() {
 
     tracing::info!(%addr, public_dir = ?conf.public_dir, "PairDrop is running");
 
-    axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>())
-        .with_graceful_shutdown(shutdown_signal())
-        .await
-        .expect("server failed");
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .with_graceful_shutdown(shutdown_signal())
+    .await
+    .expect("server failed");
 }
 
 async fn shutdown_signal() {

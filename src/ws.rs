@@ -70,7 +70,11 @@ impl Hub {
             chunk.copy_from_slice(&Uuid::new_v4().into_bytes());
             let _ = i;
         }
-        Hub { conf, secret, state: Mutex::new(HubState::default()) }
+        Hub {
+            conf,
+            secret,
+            state: Mutex::new(HubState::default()),
+        }
     }
 
     /// Lets a reconnecting client keep its peer id without letting anyone claim an arbitrary one.
@@ -89,12 +93,16 @@ impl Hub {
 
     fn join_ip_room(&self, peer_id: &Uuid) {
         let mut state = self.state.lock().unwrap();
-        let Some(room_id) = state.peers.get(peer_id).map(|p| p.ip.clone()) else { return };
+        let Some(room_id) = state.peers.get(peer_id).map(|p| p.ip.clone()) else {
+            return;
+        };
         state.join_room(peer_id, "ip", &room_id);
     }
 
     fn on_room_secrets(&self, peer_id: &Uuid, message: &serde_json::Value) {
-        let Some(secrets) = message.get("roomSecrets").and_then(|s| s.as_array()) else { return };
+        let Some(secrets) = message.get("roomSecrets").and_then(|s| s.as_array()) else {
+            return;
+        };
 
         let secrets: Vec<String> = secrets
             .iter()
@@ -110,7 +118,9 @@ impl Hub {
     }
 
     fn on_room_secrets_deleted(&self, message: &serde_json::Value) {
-        let Some(secrets) = message.get("roomSecrets").and_then(|s| s.as_array()) else { return };
+        let Some(secrets) = message.get("roomSecrets").and_then(|s| s.as_array()) else {
+            return;
+        };
 
         let mut state = self.state.lock().unwrap();
         for secret in secrets.iter().filter_map(|s| s.as_str()) {
@@ -144,14 +154,20 @@ impl Hub {
     fn on_pair_device_join(&self, peer_id: &Uuid, message: &serde_json::Value) {
         let mut state = self.state.lock().unwrap();
 
-        let rate_limited =
-            state.peers.get_mut(peer_id).is_some_and(|peer| peer.rate_limit_reached());
+        let rate_limited = state
+            .peers
+            .get_mut(peer_id)
+            .is_some_and(|peer| peer.rate_limit_reached());
         if rate_limited {
             state.send(peer_id, &json!({ "type": "join-key-rate-limit" }));
             return;
         }
 
-        let key = message.get("pairKey").and_then(|k| k.as_str()).unwrap_or_default().to_string();
+        let key = message
+            .get("pairKey")
+            .and_then(|k| k.as_str())
+            .unwrap_or_default()
+            .to_string();
         let offer = state.pair_keys.get(&key);
 
         let Some((room_secret, creator)) = offer
@@ -188,15 +204,22 @@ impl Hub {
         };
 
         state.remove_pair_key(&pair_key);
-        state.send(peer_id, &json!({ "type": "pair-device-canceled", "pairKey": pair_key }));
+        state.send(
+            peer_id,
+            &json!({ "type": "pair-device-canceled", "pairKey": pair_key }),
+        );
     }
 
     fn on_regenerate_room_secret(&self, message: &serde_json::Value) {
-        let Some(old_secret) = message.get("roomSecret").and_then(|s| s.as_str()) else { return };
+        let Some(old_secret) = message.get("roomSecret").and_then(|s| s.as_str()) else {
+            return;
+        };
         let new_secret = random::room_secret();
 
         let mut state = self.state.lock().unwrap();
-        let Some(members) = state.rooms.remove(old_secret) else { return };
+        let Some(members) = state.rooms.remove(old_secret) else {
+            return;
+        };
 
         let notice = json!({
             "type": "room-secret-regenerated",
@@ -216,27 +239,36 @@ impl Hub {
         let room_id = random::public_room_id();
 
         let mut state = self.state.lock().unwrap();
-        state.send(peer_id, &json!({ "type": "public-room-created", "roomId": room_id }));
+        state.send(
+            peer_id,
+            &json!({ "type": "public-room-created", "roomId": room_id }),
+        );
         state.join_public_room(peer_id, &room_id);
     }
 
     fn on_join_public_room(&self, peer_id: &Uuid, message: &serde_json::Value) {
         let mut state = self.state.lock().unwrap();
 
-        let rate_limited =
-            state.peers.get_mut(peer_id).is_some_and(|peer| peer.rate_limit_reached());
+        let rate_limited = state
+            .peers
+            .get_mut(peer_id)
+            .is_some_and(|peer| peer.rate_limit_reached());
         if rate_limited {
             state.send(peer_id, &json!({ "type": "join-key-rate-limit" }));
             return;
         }
 
-        let Some(room_id) =
-            message.get("publicRoomId").and_then(|id| id.as_str()).map(str::to_owned)
+        let Some(room_id) = message
+            .get("publicRoomId")
+            .and_then(|id| id.as_str())
+            .map(str::to_owned)
         else {
             return;
         };
-        let create_if_invalid =
-            message.get("createIfInvalid").and_then(|v| v.as_bool()).unwrap_or(false);
+        let create_if_invalid = message
+            .get("createIfInvalid")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
 
         if !state.rooms.contains_key(&room_id) && !create_if_invalid {
             state.send(
@@ -267,7 +299,12 @@ impl Hub {
             state.leave_room(peer_id, "ip", &ip, true);
         }
 
-        for secret in state.peers.get(peer_id).map(|p| p.room_secrets.clone()).unwrap_or_default() {
+        for secret in state
+            .peers
+            .get(peer_id)
+            .map(|p| p.room_secrets.clone())
+            .unwrap_or_default()
+        {
             state.leave_secret_room(peer_id, &secret, true);
         }
 
@@ -279,7 +316,9 @@ impl Hub {
     /// the sender's identity. Only peers that share a room can reach each other.
     fn signal_and_relay(&self, sender_id: &Uuid, mut message: serde_json::Value) {
         let state = self.state.lock().unwrap();
-        let Some(sender) = state.peers.get(sender_id) else { return };
+        let Some(sender) = state.peers.get(sender_id) else {
+            return;
+        };
 
         let room_id = match message.get("roomType").and_then(|t| t.as_str()) {
             Some("ip") => sender.ip.clone(),
@@ -297,7 +336,10 @@ impl Hub {
             return;
         };
 
-        let in_room = state.rooms.get(&room_id).is_some_and(|m| m.contains(&recipient_id));
+        let in_room = state
+            .rooms
+            .get(&room_id)
+            .is_some_and(|m| m.contains(&recipient_id));
         if !in_room {
             return;
         }
@@ -336,7 +378,9 @@ impl HubState {
     }
 
     fn delete_secret_room(&mut self, room_secret: &str) {
-        let Some(members) = self.rooms.get(room_secret).cloned() else { return };
+        let Some(members) = self.rooms.get(room_secret).cloned() else {
+            return;
+        };
 
         let notice = json!({ "type": "secret-room-deleted", "roomSecret": room_secret });
         for member_id in members {
@@ -355,7 +399,11 @@ impl HubState {
     }
 
     fn leave_public_room(&mut self, peer_id: &Uuid, disconnect: bool) {
-        let Some(room_id) = self.peers.get(peer_id).and_then(|p| p.public_room_id.clone()) else {
+        let Some(room_id) = self
+            .peers
+            .get(peer_id)
+            .and_then(|p| p.public_room_id.clone())
+        else {
             return;
         };
 
@@ -371,8 +419,13 @@ impl HubState {
             key = random::pair_key();
         }
 
-        self.pair_keys
-            .insert(key.clone(), PairOffer { room_secret: room_secret.to_string(), creator: *creator });
+        self.pair_keys.insert(
+            key.clone(),
+            PairOffer {
+                room_secret: room_secret.to_string(),
+                creator: *creator,
+            },
+        );
         key
     }
 
@@ -393,12 +446,19 @@ impl HubState {
         // The room has to exist before notifying, so the first peer in still gets `peers: []`.
         self.rooms.entry(room_id.to_string()).or_default();
         self.notify_peers(peer_id, room_type, room_id);
-        self.rooms.get_mut(room_id).expect("room was just created").push(*peer_id);
+        self.rooms
+            .get_mut(room_id)
+            .expect("room was just created")
+            .push(*peer_id);
     }
 
     fn leave_room(&mut self, peer_id: &Uuid, room_type: &str, room_id: &str, disconnect: bool) {
-        let Some(members) = self.rooms.get_mut(room_id) else { return };
-        let Some(index) = members.iter().position(|id| id == peer_id) else { return };
+        let Some(members) = self.rooms.get_mut(room_id) else {
+            return;
+        };
+        let Some(index) = members.iter().position(|id| id == peer_id) else {
+            return;
+        };
         members.remove(index);
 
         if members.is_empty() {
@@ -423,8 +483,12 @@ impl HubState {
 
     /// Tells the room about the newcomer, then tells the newcomer about the room.
     fn notify_peers(&self, peer_id: &Uuid, room_type: &str, room_id: &str) {
-        let Some(members) = self.rooms.get(room_id) else { return };
-        let Some(peer) = self.peers.get(peer_id) else { return };
+        let Some(members) = self.rooms.get(room_id) else {
+            return;
+        };
+        let Some(peer) = self.peers.get(peer_id) else {
+            return;
+        };
 
         let joined = json!({
             "type": "peer-joined",
@@ -465,7 +529,10 @@ pub async fn handler(
     upgrade: WebSocketUpgrade,
 ) -> Response {
     let ip = ip::resolve(&headers, Some(addr.ip()), &hub.conf);
-    let user_agent = headers.get("user-agent").and_then(|v| v.to_str().ok()).map(str::to_owned);
+    let user_agent = headers
+        .get("user-agent")
+        .and_then(|v| v.to_str().ok())
+        .map(str::to_owned);
 
     // Reuse the client's peer id only when it can prove the server issued it.
     let id = query
@@ -477,9 +544,7 @@ pub async fn handler(
 
     let rtc_supported = query.webrtc_supported.as_deref() == Some("true");
 
-    upgrade.on_upgrade(move |socket| {
-        connection(hub, socket, id, ip, rtc_supported, user_agent)
-    })
+    upgrade.on_upgrade(move |socket| connection(hub, socket, id, ip, rtc_supported, user_agent))
 }
 
 async fn connection(
@@ -496,11 +561,10 @@ async fn connection(
     let name = PeerName::new(&id, user_agent.as_deref());
     tracing::debug!(%id, %ip, display_name = %name.display_name, "peer connected");
 
-    hub.state
-        .lock()
-        .unwrap()
-        .peers
-        .insert(id, Peer::new(id, ip.clone(), rtc_supported, name.clone(), tx.clone()));
+    hub.state.lock().unwrap().peers.insert(
+        id,
+        Peer::new(id, ip.clone(), rtc_supported, name.clone(), tx.clone()),
+    );
 
     // One task owns the sink; everything else queues through `tx`.
     let writer = tokio::spawn(async move {

@@ -1,7 +1,9 @@
 services:
   pairdrop:
+    # `docker compose up --build` builds locally; `docker compose pull` fetches the
+    # published multi-arch image instead.
     build: .
-    image: pairdrop-rs:latest
+    image: ghcr.io/daviddesmet/pairdrop-rs:latest
     container_name: pairdrop
     restart: unless-stopped
     environment:

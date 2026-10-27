@@ -89,7 +89,13 @@ the reverse proxy be the only route to it.
 
 ```bash
 cargo run                      # serves ./public on :3000
-docker compose up -d --build   # scratch image, ~30 MB
+docker compose up -d --build   # build the scratch image locally, ~30 MB
+```
+
+Or pull the image built by CI for amd64 and arm64:
+
+```bash
+docker compose pull && docker compose up -d
 ```
 
 To compare behaviour against upstream, restore its server from history and run it beside this

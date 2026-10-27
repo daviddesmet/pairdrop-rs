@@ -23,7 +23,11 @@ use crate::ws::{self, Hub};
 /// cache lives. `no-cache` still allows 304s; it only forbids using a copy without asking.
 const REVALIDATE: HeaderValue = HeaderValue::from_static("no-cache");
 
-pub fn router(conf: Arc<Config>, hub: Arc<Hub>, service_worker: Option<Arc<ServiceWorker>>) -> Router {
+pub fn router(
+    conf: Arc<Config>,
+    hub: Arc<Hub>,
+    service_worker: Option<Arc<ServiceWorker>>,
+) -> Router {
     // Express serves `public/` first, answers `/config` (and `/ip` in debug mode), and 301s
     // everything else to `/`.
     let assets = ServeDir::new(&conf.public_dir).append_index_html_on_directories(true);
@@ -45,7 +49,10 @@ pub fn router(conf: Arc<Config>, hub: Arc<Hub>, service_worker: Option<Arc<Servi
                 async move {
                     (
                         [
-                            (CONTENT_TYPE, HeaderValue::from_static("application/javascript")),
+                            (
+                                CONTENT_TYPE,
+                                HeaderValue::from_static("application/javascript"),
+                            ),
                             (CACHE_CONTROL, REVALIDATE),
                         ],
                         service_worker.body.clone(),
@@ -64,11 +71,17 @@ pub fn router(conf: Arc<Config>, hub: Arc<Hub>, service_worker: Option<Arc<Servi
         .fallback_service(
             assets.fallback(axum::routing::any(redirect_to_root).with_state(conf.clone())),
         )
-        .layer(SetResponseHeaderLayer::overriding(CACHE_CONTROL, REVALIDATE));
+        .layer(SetResponseHeaderLayer::overriding(
+            CACHE_CONTROL,
+            REVALIDATE,
+        ));
 
     if conf.rate_limit.is_some() {
         let limiter = RateLimiter::new(conf.clone());
-        router = router.layer(axum::middleware::from_fn_with_state(limiter, rate_limit::layer));
+        router = router.layer(axum::middleware::from_fn_with_state(
+            limiter,
+            rate_limit::layer,
+        ));
     }
 
     router.with_state(conf)

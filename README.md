@@ -183,6 +183,10 @@ Gone with the Node server: Express, `ws`, `express-rate-limit`, `ua-parser-js` a
 
 [Host your own instance with Docker or from source](docs/host-your-own.md).
 
+```bash
+docker pull ghcr.io/daviddesmet/pairdrop-rs:latest
+```
+
 ## Support upstream
 
 This fork takes no donations. PairDrop is libre and always will be, and the work this is built on

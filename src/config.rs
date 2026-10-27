@@ -65,7 +65,9 @@ impl Config {
         let has_arg = |name: &str| args.iter().any(|a| a == name);
 
         let port = match env("PORT") {
-            Some(p) => p.parse().map_err(|_| format!("PORT must be a port number, got {p:?}"))?,
+            Some(p) => p
+                .parse()
+                .map_err(|_| format!("PORT must be a port number, got {p:?}"))?,
             None => 3000,
         };
 
@@ -88,7 +90,11 @@ impl Config {
                             .into(),
                     );
                 }
-                SignalingServer::Url(if url.ends_with('/') { url } else { format!("{url}/") })
+                SignalingServer::Url(if url.ends_with('/') {
+                    url
+                } else {
+                    format!("{url}/")
+                })
             }
             None => SignalingServer::Disabled(false),
         };
@@ -100,7 +106,8 @@ impl Config {
         };
 
         // `--rate-limit` / `RATE_LIMIT=true` mean "5 proxy hops"; a bare number sets the hop count.
-        let rate_limit = if has_arg("--rate-limit") || env("RATE_LIMIT").as_deref() == Some("true") {
+        let rate_limit = if has_arg("--rate-limit") || env("RATE_LIMIT").as_deref() == Some("true")
+        {
             Some(5)
         } else {
             env("RATE_LIMIT").and_then(|v| v.parse().ok())
@@ -126,16 +133,20 @@ impl Config {
                 custom_button: button("CUSTOM"),
                 privacypolicy_button: button("PRIVACYPOLICY"),
             },
-            public_dir: env("PUBLIC_DIR").map(PathBuf::from).unwrap_or_else(|| "public".into()),
+            public_dir: env("PUBLIC_DIR")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| "public".into()),
             client_config: serde_json::Value::Null,
         };
 
         if config.signaling_server.is_enabled()
             && (config.ws_fallback || config.ipv6_localize.is_some() || env("RTC_CONFIG").is_some())
         {
-            return Err("SIGNALING_SERVER cannot be used alongside WS_FALLBACK, RTC_CONFIG or \
+            return Err(
+                "SIGNALING_SERVER cannot be used alongside WS_FALLBACK, RTC_CONFIG or \
                         IPV6_LOCALIZE as these are specified by the signaling server."
-                .into());
+                    .into(),
+            );
         }
 
         let mut config = config;

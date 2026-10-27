@@ -84,7 +84,8 @@ impl Peer {
 
     pub fn rate_limit_reached(&mut self) -> bool {
         let now = Instant::now();
-        self.recent_attempts.retain(|at| now.duration_since(*at) < RATE_LIMIT_WINDOW);
+        self.recent_attempts
+            .retain(|at| now.duration_since(*at) < RATE_LIMIT_WINDOW);
 
         if self.recent_attempts.len() >= RATE_LIMIT_ATTEMPTS {
             return true;
@@ -107,7 +108,11 @@ impl Peer {
 
 impl Peer {
     pub fn info(&self) -> PeerInfo {
-        PeerInfo { id: self.id, name: self.name.clone(), rtc_supported: self.rtc_supported }
+        PeerInfo {
+            id: self.id,
+            name: self.name.clone(),
+            rtc_supported: self.rtc_supported,
+        }
     }
 
     pub fn send(&self, message: &serde_json::Value) {

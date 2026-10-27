@@ -23,7 +23,9 @@ pub fn pair_key() -> String {
 
 fn string_from(alphabet: &[u8], length: usize) -> String {
     let mut rng = rand::rng();
-    (0..length).map(|_| alphabet[rng.random_range(0..alphabet.len())] as char).collect()
+    (0..length)
+        .map(|_| alphabet[rng.random_range(0..alphabet.len())] as char)
+        .collect()
 }
 
 #[cfg(test)]
