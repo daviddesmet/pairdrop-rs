@@ -1,0 +1,24 @@
+[package]
+name = "pairdrop-rs"
+version = "0.1.0"
+edition = "2021"
+description = "Rust signaling server for PairDrop"
+license = "GPL-3.0-or-later"
+repository = "https://github.com/daviddesmet/pairdrop-rs"
+
+[dependencies]
+axum = { version = "0.8", features = ["ws"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal", "time", "sync"] }
+tower-http = { version = "0.7", features = ["fs", "set-header"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+sha2 = "0.11"
+hex = "0.4"
+futures-util = { version = "0.3", default-features = false, features = ["sink"] }
+
+[profile.release]
+lto = true
+strip = true
