@@ -4,6 +4,8 @@ mod ip;
 mod names;
 mod peer;
 mod random;
+mod rate_limit;
+mod sw;
 mod ws;
 
 use std::net::{Ipv4Addr, SocketAddr};
@@ -40,8 +42,14 @@ async fn main() {
     let host = if conf.localhost_only { Ipv4Addr::LOCALHOST } else { Ipv4Addr::UNSPECIFIED };
     let addr = SocketAddr::from((host, conf.port));
 
+    let service_worker = sw::ServiceWorker::build(&conf.public_dir).map(Arc::new);
+    match &service_worker {
+        Some(worker) => tracing::info!(version = %worker.version, "service worker cache version"),
+        None => tracing::warn!(dir = ?conf.public_dir, "no service-worker.js found"),
+    }
+
     let hub = Arc::new(ws::Hub::new(conf.clone()));
-    let app = http::router(conf.clone(), hub);
+    let app = http::router(conf.clone(), hub, service_worker);
 
     let listener = match tokio::net::TcpListener::bind(addr).await {
         Ok(listener) => listener,
