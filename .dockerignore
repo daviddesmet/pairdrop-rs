@@ -1,7 +1,6 @@
 .github
 .git*
 .idea
-dev
 docs
 licenses
 node_modules

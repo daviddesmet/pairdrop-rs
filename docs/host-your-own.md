@@ -7,7 +7,7 @@ Beware that you have to host your own TURN server to enable transfers between di
 Follow [this guide](https://gabrieltanner.org/blog/turn-server/) to either install coturn directly on your system (Step 1) 
 or deploy it via Docker (Step 5).
 
-You can use the `docker-compose-coturn.yml` in this repository. See [Coturn and PairDrop via Docker Compose](#coturn-and-pairdrop-via-docker-compose).
+You can use the `compose.coturn.yml` in this repository. See [Coturn and PairDrop via Docker Compose](#coturn-and-pairdrop-via-docker-compose).
  
 Alternatively, use a free, pre-configured TURN server like [OpenRelay](https://www.metered.ca/tools/openrelay/)
 
@@ -599,7 +599,7 @@ service apache2 reload
 ## Coturn and PairDrop via Docker Compose
 
 ### Setup container
-To run coturn and PairDrop at once by using the `docker-compose-coturn.yml` with TURN over TLS enabled
+To run coturn and PairDrop at once by using the `compose.coturn.yml` with TURN over TLS enabled
 you need to follow these steps:
 
 1. Generate or retrieve certificates for your `<DOMAIN>` (e.g. letsencrypt / certbot)
@@ -612,19 +612,19 @@ you need to follow these steps:
 8. Change `<DOMAIN>` in both files to the domain where your PairDrop instance is running 
 9. Change `username` and `password` in `turnserver.conf` and `rtc-config.json`
 10. To start the container including coturn run: \
-  `docker compose -f docker-compose-coturn.yml up -d`
+  `docker compose -f compose.coturn.yml up -d`
 
 <br>
 
 #### Setup container
 To restart the container including coturn run: \
-  `docker compose -f docker-compose-coturn.yml restart`
+  `docker compose -f compose.coturn.yml restart`
 
 <br>
 
 #### Setup container
 To stop the container including coturn run: \
-  `docker compose -f docker-compose-coturn.yml stop`
+  `docker compose -f compose.coturn.yml stop`
 
 <br>
 
@@ -640,41 +640,36 @@ To run PairDrop including its own coturn-server you need to punch holes in the f
 
 ### Install
 
-All files needed for developing are available in the folder `./dev`.
-
-For convenience, there is also a docker compose file for developing:
-
-#### Developing with docker compose
-First, [Install docker with docker compose.](https://docs.docker.com/compose/install/)
-
-Then, clone the repository and run docker compose:
+The server is Rust, the client is plain static files under `public/`. There is no build step for
+either:
 
 ```bash
-git clone https://github.com/schlagmichdoch/PairDrop.git && cd PairDrop
+git clone https://github.com/daviddesmet/pairdrop-rs.git && cd pairdrop-rs
 ```
 ```bash
-docker compose -f docker-compose-dev.yml up --no-deps --build
+cargo run
 ```
 
-Now point your web browser to `http://localhost:8080`.
+Now point your web browser to `http://localhost:3000`.
 
-- To debug the Node.js server, run `docker logs pairdrop`.
-- After changes to the code you have to rerun the `docker compose` command
+- `cargo run` serves `public/` directly, so a client change needs only a reload.
+- A server change needs a restart.
+- `RUST_LOG=pairdrop_rs=debug cargo run` logs peer connections and room membership.
+- To compare behaviour against upstream's Node server, run it beside this one:
+  `PORT=3001 node server/index.js`.
 
 <br>
 
 #### Testing PWA related features
 
-PWAs requires the app to be served under a correctly set up and trusted TLS endpoint.
+PWAs require the app to be served from a secure context. `http://localhost:3000` already counts
+as one, so service workers, installation and WebRTC all work against `cargo run` with no
+certificate at all.
 
-The NGINX container creates a CA certificate and a website certificate for you. 
-To correctly set the common name of the certificate, 
-you need to change the FQDN environment variable in `docker-compose-dev.yml`
-to the fully qualified domain name of your workstation. (Default: localhost)
-
-If you want to test PWA features, you need to trust the CA of the certificate for your local deployment. \
-For your convenience, you can download the crt file from `http://<Your FQDN>:8080/ca.crt`. \
-Install that certificate to the trust store of your operating system. \
+Reaching the dev server from another device on your network does need TLS, since those origins
+are not `localhost`. Put a reverse proxy in front with a certificate your devices already trust,
+and point it at `127.0.0.1:3000`. If you issue your own CA for that, install it in each device's
+trust store:
 
 ##### Windows
 - Make sure to install it to the `Trusted Root Certification Authorities` store.
@@ -684,26 +679,18 @@ Install that certificate to the trust store of your operating system. \
 - expand `Trust`, and select `Always Trust` for SSL.
 
 ##### Firefox
-Firefox uses its own trust store. To install the CA:
-- point Firefox at `http://<Your FQDN>:8080/ca.crt` (Default: `http://localhost:8080/ca.crt`)
-- When prompted, select `Trust this CA to identify websites` and click _OK_.
-
-Alternatively:
-1. Download `ca.crt` from `http://<Your FQDN>:8080/ca.crt` (Default: `http://localhost:8080/ca.crt`)
-2. Go to `about:preferences#privacy` scroll down to `Security` and `Certificates` and click `View Certificates`
-3. Import the downloaded certificate file (step 1)
+Firefox uses its own trust store:
+1. Go to `about:preferences#privacy`, scroll to `Security` and `Certificates`, click `View Certificates`
+2. Import your `ca.crt` under `Authorities`
+3. When prompted, select `Trust this CA to identify websites` and click _OK_.
 
 ##### Chrome
 - When using Chrome, you need to restart Chrome so it reloads the trust store (`chrome://restart`).
 - Additionally, after installing a new cert, you need to clear the Storage (DevTools → Application → Clear storage → Clear site data).
 
 ##### Google Chrome
-- To skip the installation of the certificate, you can also open `chrome://flags/#unsafely-treat-insecure-origin-as-secure`
-- The feature `Insecure origins treated as secure` must be enabled and the list must include your PairDrop test instance. E.g.: `http://127.0.0.1:3000,https://127.0.0.1:8443`
-
-Please note that the certificates (CA and webserver cert) expire after a day.
-Also, whenever you restart the NGINX Docker container new certificates are created.
-
-The site is served on `https://<Your FQDN>:8443` (Default: `https://localhost:8443`).
+- To skip certificates entirely, open `chrome://flags/#unsafely-treat-insecure-origin-as-secure`
+- Enable `Insecure origins treated as secure` and list the origin you reach the dev server on,
+  e.g. `http://192.168.1.10:3000`. This is the quickest way to test PWA behaviour from a phone.
 
 [< Back](/README.md)

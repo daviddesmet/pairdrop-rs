@@ -1,0 +1,40 @@
+# PairDrop with its own TURN server, for transfers between devices that cannot reach each other
+# directly. See docs/host-your-own.md#coturn-and-pairdrop-via-docker-compose for the turnserver
+# and certificate setup.
+#
+#   docker compose -f compose.coturn.yml up -d
+services:
+  pairdrop:
+    build: .
+    image: pairdrop-rs:latest
+    container_name: pairdrop
+    restart: unless-stopped
+    volumes:
+      - ./rtc_config.json:/rtc_config.json:ro
+    environment:
+      - WS_FALLBACK=false # Set to true to relay transfers through the server when WebRTC is unavailable.
+      - RATE_LIMIT=false # Set to true to limit clients to 1000 requests per 5 min.
+      - RTC_CONFIG=/rtc_config.json # Points at the volume above; see rtc_config_example.json.
+      - DEBUG_MODE=false # Set to true to debug container and peer connections.
+      - TRUST_CF_CONNECTING_IP=false # Set to true only when Cloudflare is the sole way in.
+      - TZ=Etc/UTC # Time Zone
+    ports:
+      - "127.0.0.1:3000:3000" # Keep this on loopback so clients cannot bypass the reverse proxy.
+    healthcheck:
+      test: ["CMD", "/pairdrop-rs", "--healthcheck"]
+      interval: 30s
+      timeout: 10s
+      start_period: 5s
+      retries: 3
+  coturn_server:
+    image: "coturn/coturn"
+    restart: unless-stopped
+    volumes:
+      - ./turnserver.conf:/etc/coturn/turnserver.conf
+      - ./ssl/:/etc/coturn/ssl/
+    ports:
+      - "3478:3478"
+      - "3478:3478/udp"
+      - "5349:5349"
+      - "5349:5349/udp"
+      - "10000-20000:10000-20000/udp"
